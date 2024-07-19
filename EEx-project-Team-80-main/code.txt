@@ -1,0 +1,79 @@
+#include <SPI.h>
+#include <MFRC522.h>
+
+#define SS_PIN 10//SDA pin in RFID
+#define RST_PIN 9//RSTOR RESET pin in RFID
+MFRC522 rfid(SS_PIN, RST_PIN); // Create MFRC522 instance
+
+// Define LED pins
+const int ledPins[] = {2, 3, 4}; // Update these pins according to your setup
+
+// Define sensor and button pins
+const int fireSensorPin = 5; // MQ2 fire sensor pin
+const int irSensorPin = 6;   // IR beam break sensor pin
+const int buttonPin = 7;     // Doorbell button pin
+
+// Define correct RFID tag
+String correctTag = "6A 94 71 80";
+
+void setup() {
+  SPI.begin();        // Init SPI bus
+  rfid.PCD_Init();    // Init MFRC522 
+
+  // Initialize LED pins as outputs
+  for (int i = 0; i < sizeof(ledPins)/sizeof(int); i++) {
+    pinMode(ledPins[i], OUTPUT);
+  }
+
+  // Initialize sensor and button pins as inputs with pull-up resistors
+  pinMode(fireSensorPin, INPUT_PULLUP);
+  pinMode(irSensorPin, INPUT_PULLUP);
+  pinMode(buttonPin, INPUT_PULLUP);
+}
+
+void loop() {
+  // Check for new cards
+  if (rfid.PICC_IsNewCardPresent() && rfid.PICC_ReadCardSerial()) {
+    String readRFID = "";
+    for (byte i = 0; i < rfid.uid.size; i++) {
+      readRFID += String(rfid.uid.uidByte[i] < 0x10 ? " 0" : " ");
+      readRFID += String(rfid.uid.uidByte[i], HEX);
+    }
+    readRFID.trim();
+    if (readRFID != correctTag) {
+      blinkPattern(10, 100); // Blink ten times with 100ms delay for wrong RFID tag
+    }
+  }
+
+  // Read the sensors and button state
+  if (digitalRead(fireSensorPin) == LOW) { // Change to LOW
+    blinkPattern(10, 100); // Blink once with 500ms delay for fire detection
+  } else if (digitalRead(irSensorPin) == LOW) { // Change to LOW
+    blinkPattern(15, 50); // Blink twice with 300ms delay for beam break
+  } else if (digitalRead(buttonPin) == LOW) { // Change to LOW
+    blinkPattern(6, 400); // Blink four times with 100ms delay for doorbell ring
+  } else {
+    turnOffLeds(); // Turn off all LEDs if no sensors are triggered
+  }
+}
+
+// Function to blink LEDs a specified number of times with a specified speed
+void blinkPattern(int blinks, int speed) {
+  for (int i = 0; i < blinks; i++) {
+    for (int j = 0; j < sizeof(ledPins)/sizeof(int); j++) {
+      digitalWrite(ledPins[j], HIGH);
+    }
+    delay(speed);
+    for (int j = 0; j < sizeof(ledPins)/sizeof(int); j++) {
+      digitalWrite(ledPins[j], LOW);
+    }
+    delay(speed);
+  }
+}
+
+// Function to turn off all LEDs
+void turnOffLeds() {
+  for (int i = 0; i < sizeof(ledPins)/sizeof(int); i++) {
+    digitalWrite(ledPins[i], LOW);
+  }
+}
